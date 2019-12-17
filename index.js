@@ -89,9 +89,14 @@ const uploadZipToCloud = async (zip) => {
 const sendLinkViaEmail = (link) => {
   const transport = {
     service: 'gmail',
+    secure: false,
+    port: 25,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
+    },
+    tls: {
+      rejectUnauthorized: false
     }
   }
   console.log(JSON.parse(JSON.stringify(transport)));
