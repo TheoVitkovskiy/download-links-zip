@@ -6,7 +6,7 @@ const archiver = require('archiver');
 const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
-const cors = required('cors');
+const cors = require('cors');
 
 require('dotenv').config();
 
