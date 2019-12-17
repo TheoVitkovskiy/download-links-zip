@@ -6,12 +6,14 @@ const archiver = require('archiver');
 const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
+const cors = required('cors');
 
 require('dotenv').config();
 
 const app = express();
 
 app.use(bodyParser.json());
+app.use(cors());
 
 app.post('/', async (req, res) => {
     const dir = './' + req.body.name;
