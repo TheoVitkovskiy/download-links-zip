@@ -142,4 +142,8 @@ const zipDirectory = (source, out) => {
   });
 }
 
-app.listen(3004);
+
+const port = process.env.PORT || 3004;
+app.listen(port, () => {
+  console.log(`The download link server is ready at port ${port}. Feel free to send some data in the form {"name" : "cool"}, "links" : ["https://link.com"]"} to POST /`)
+});
