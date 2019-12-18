@@ -3,10 +3,10 @@ const async = require('async');
 const https = require('https');
 const fs = require('fs');
 const archiver = require('archiver');
-const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const authorizeGoogle = require('./auth');
 
 require('dotenv').config();
 
@@ -22,10 +22,9 @@ app.post('/', async (req, res) => {
       fs.mkdirSync(dir);
     }
 
-    const folderPath = download(req.body.links, dir);
-    console.log(folderPath);
-
-	  res.send(folderPath)
+    download(req.body.links, dir);
+    
+	  res.send('Your files will be downloaded shortly and sent to you per E-Mail.');
 });
 
 const download = (links, dir) => {
@@ -59,46 +58,51 @@ const download = (links, dir) => {
       cleanUp(dir);
     });
 
-    return 'Your files will be downloaded shortly and sent to you per E-Mail.';
 }
 
 const cleanUp = (dir) => {
   console.log('running clean up ...');
-  fs.unlink(dir + '.zip', (err) => {
-    console.error(err);
-    return;
-  })
+//  fs.unlink(dir + '.zip', (err) => {
+//    console.error(err);
+//    return;
+//  })
 }
 
 const uploadZipToCloud = async (zip) => {
-  try {
-    const browser = await puppeteer.launch({
-       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-      ],
-    });
-    const page = await browser.newPage();
+  console.log('ZIP', zip);
+  const upload = new Promise((resolve, reject) => {
+    authorizeGoogle((auth, google) => {
+      const drive = google.drive({version: 'v3', auth});
 
-    await page.goto('https://www.filedropper.com/');
-    await page.waitForSelector('.fileUpload');
-    console.log('zip before uploading - ' + zip);
-    const input = await page.$('input[type="file"]');
-    await input.uploadFile(zip);
-    await page.screenshot({ path: 'screenshot.png' })
-    try {
-      await page.waitForSelector('.linktext', {
-        timeout: 60000
-      });
-    } catch (e) {
-      await page.screenshot({ path: 'screenshot.png' })
-    }
-    const [ link, element ] = await page.$$eval('input[type="text"]', el => el.map(x => x.getAttribute("value")));
-    await browser.close();
-    return link;
-  } catch (e) {
-    console.error(e);
-  }
+      const fileMetadata = {
+        'name' : zip
+      };
+
+      const media = {
+        //mimeType: 'image/jpeg',
+        body: fs.createReadStream(zip)
+      }
+
+      drive.files.create({
+        resource: fileMetadata,
+        media,
+        fields: 'webViewLink'
+      }, (err, file) => {
+        if (err) {
+          console.error(err);
+          reject();
+        } else {
+          console.log('uploaded the zip to the cloud', file.data.webViewLink);
+          resolve(file.data.webViewLink);
+        }
+      })
+        
+    })
+  })
+
+  const link = await upload;
+
+  return link;
 }
 
 const sendLinkViaEmail = (link) => {
@@ -125,12 +129,6 @@ const sendLinkViaEmail = (link) => {
     to: 'fvitkovski@mail.de',
     subject: 'Your zip is ready to download!',
     html: '<a href="'+ link +'">Click to download your zip!</a>',
-    attachments : [
-      {
-        filename: 'screenshot.png',
-        content: fs.createReadStream('./screenshot.png')
-      }
-    ]
   }
 
   transporter.sendMail(data, (err, info) => {
