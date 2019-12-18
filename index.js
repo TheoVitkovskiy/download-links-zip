@@ -59,11 +59,11 @@ const download = (links, dir) => {
       cleanUp(dir);
     });
 
-    return 'example/folderpath';
+    return 'Your files will be downloaded shortly and sent to you per E-Mail.';
 }
 
 const cleanUp = (dir) => {
-  console.log('running clean up');
+  console.log('running clean up ...');
   fs.unlink(dir + '.zip', (err) => {
     console.error(err);
     return;
@@ -87,7 +87,9 @@ const uploadZipToCloud = async (zip) => {
     await input.uploadFile(zip);
     await page.screenshot({ path: 'screenshot.png' })
     try {
-      await page.waitForSelector('.linktext');
+      await page.waitForSelector('.linktext', {
+        timeout: 3600000
+      });
     } catch (e) {
       await page.screenshot({ path: 'screenshot.png' })
     }
