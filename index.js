@@ -88,7 +88,7 @@ const uploadZipToCloud = async (zip) => {
     await page.screenshot({ path: 'screenshot.png' })
     try {
       await page.waitForSelector('.linktext', {
-        timeout: 3600000
+        timeout: 60000
       });
     } catch (e) {
       await page.screenshot({ path: 'screenshot.png' })
