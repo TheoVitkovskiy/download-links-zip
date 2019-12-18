@@ -83,9 +83,7 @@ const uploadZipToCloud = async (zip) => {
     await page.waitForSelector('.fileUpload');
     const input = await page.$('input[type="file"]');
     await input.uploadFile(zip);
-    await page.waitForSelector('.linktext', {
-      timeout : 36000000
-    });
+    await page.waitForSelector('.linktext');
     const [ link, element ] = await page.$$eval('input[type="text"]', el => el.map(x => x.getAttribute("value")));
     return link;
   } catch (e) {
