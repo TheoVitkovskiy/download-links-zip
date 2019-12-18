@@ -84,7 +84,7 @@ const uploadZipToCloud = async (zip) => {
     const input = await page.$('input[type="file"]');
     await input.uploadFile(zip);
     await page.waitForSelector('.linktext', {
-      timeout : 3600000
+      timeout : 36000000
     });
     const [ link, element ] = await page.$$eval('input[type="text"]', el => el.map(x => x.getAttribute("value")));
     return link;
@@ -107,6 +107,8 @@ const sendLinkViaEmail = (link) => {
     }
   }
   console.log(JSON.parse(JSON.stringify(transport)));
+
+  console.log('Link to the ZIP file: ' + link);
 
   let transporter = nodemailer.createTransport(transport); 
 
