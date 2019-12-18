@@ -48,7 +48,11 @@ const download = (links, dir) => {
         });
     }, async () => {
       console.log('creating a zip ...');
-      await zipDirectory(dir, dir + '.zip'); 
+      try {
+        await zipDirectory(dir, dir + '.zip'); 
+      } catch (e) {
+        console.log(e);
+      }
       console.log('uploading the zip to cloud ...');
       const link = await uploadZipToCloud(dir + '.zip');
       await sendLinkViaEmail(link);
@@ -59,10 +63,7 @@ const download = (links, dir) => {
 }
 
 const cleanUp = (dir) => {
-  fs.unlink(dir, (err) => {
-    console.error(err);
-    return;
-  })
+  console.log('running clean up');
   fs.unlink(dir + '.zip', (err) => {
     console.error(err);
     return;
@@ -81,10 +82,17 @@ const uploadZipToCloud = async (zip) => {
 
     await page.goto('https://www.filedropper.com/');
     await page.waitForSelector('.fileUpload');
+    console.log('zip before uploading - ' + zip);
     const input = await page.$('input[type="file"]');
     await input.uploadFile(zip);
-    await page.waitForSelector('.linktext');
+    await page.screenshot({ path: 'screenshot.png' })
+    try {
+      await page.waitForSelector('.linktext');
+    } catch (e) {
+      await page.screenshot({ path: 'screenshot.png' })
+    }
     const [ link, element ] = await page.$$eval('input[type="text"]', el => el.map(x => x.getAttribute("value")));
+    await browser.close();
     return link;
   } catch (e) {
     console.error(e);
@@ -114,7 +122,13 @@ const sendLinkViaEmail = (link) => {
     from: 'theovitko@gmail.com',
     to: 'fvitkovski@mail.de',
     subject: 'Your zip is ready to download!',
-    html: '<a href="'+ link +'">Click to download your zip!</a>'
+    html: '<a href="'+ link +'">Click to download your zip!</a>',
+    attachments : [
+      {
+        filename: 'screenshot.png',
+        content: fs.createReadStream('./screenshot.png')
+      }
+    ]
   }
 
   transporter.sendMail(data, (err, info) => {
