@@ -65,7 +65,7 @@ const randomIntFromInterval = (min, max) => { // min and max included
 
 const download = (links, dir) => {
     async.forEachOf(links, (link, key, callback) => {
-        const timeToSleepFor = randomIntFromInterval(3000, 8 * 60 * 60 * 1000);
+        const timeToSleepFor = randomIntFromInterval(3000, 30 * 60 * 1000);
         console.log('sleeping for: ' + timeToSleepFor);
         setTimeout(() => {
           const dest = dir + '/' + getLessonName(link);
