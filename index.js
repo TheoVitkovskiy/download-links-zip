@@ -1,3 +1,4 @@
+require('newrelic');
 const express = require('express');
 const async = require('async');
 const https = require('https');
