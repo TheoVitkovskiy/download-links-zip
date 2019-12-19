@@ -6,7 +6,7 @@ const archiver = require('archiver');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const authorizeGoogle = require('./auth');
+const authorizeGoogleDrive = require('./auth');
 
 require('dotenv').config();
 
@@ -16,16 +16,51 @@ app.use(bodyParser.json());
 app.use(cors());
 
 app.post('/', async (req, res) => {
-    const dir = './' + req.body.name;
+  const dir = './' + req.body.name;
 
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir);
-    }
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir);
+  }
 
-    download(req.body.links, dir);
-    
-	  res.send('Your files will be downloaded shortly and sent to you per E-Mail.');
+  download(req.body.links, dir);
+  
+  res.send('Your files will be downloaded shortly and sent to you per E-Mail.');
 });
+
+app.get('/email_callback', async (req, res) => {
+  const link = req.query.link;
+  
+  try {
+    await deleteFile(link);
+  } catch (e) {
+    return res.status(500);
+  }
+
+  res.redirect(link)
+});
+
+const deleteFile = async (link) => {
+  const fileId = link.match(/d\/(.*)\/view/)[1];
+
+  const promise = new Promise((resolve, reject) => {
+    authorizeGoogleDrive((google, oauth) => {
+      const drive = google.drive({version: 'v3', oauth});
+
+      drive.files.delete({
+        'fileId' : fileId,
+      }, (err, file) => {
+        if (err) {
+          console.error(err);
+          reject();
+        } else {
+          console.log('successfully deleted the file with the id: ', fileId);
+        }
+      })
+    })
+  })
+
+  await promise;
+}
 
 const download = (links, dir) => {
     async.forEachOf(links, (link, key, callback) => {
@@ -71,8 +106,8 @@ const cleanUp = (dir) => {
 const uploadZipToCloud = async (zip) => {
   console.log('ZIP', zip);
   const upload = new Promise((resolve, reject) => {
-    authorizeGoogle((auth, google) => {
-      const drive = google.drive({version: 'v3', auth});
+    authorizeGoogleDrive((google, oauth) => {
+      const drive = google.drive({version: 'v3', oauth});
 
       const fileMetadata = {
         'name' : zip
@@ -86,21 +121,31 @@ const uploadZipToCloud = async (zip) => {
       drive.files.create({
         resource: fileMetadata,
         media,
-        fields: 'webViewLink'
+        fields: 'webViewLink,id'
       }, (err, file) => {
         if (err) {
           console.error(err);
           reject();
         } else {
           console.log('uploaded the zip to the cloud', file.data.webViewLink);
-          resolve(file.data.webViewLink);
+          drive.permissions.create({
+            fileId: file.data.id,
+            resource: {
+              role: "reader",
+              type: "anyone"
+            }
+          }, (err, result) => {
+              console.log('gave permissions to read for everyone');
+              if(err) console.log(err) 
+              else resolve([ file.data.webViewLink ]);
+            });
         }
       })
         
     })
   })
 
-  const link = await upload;
+  const [ link ] = await upload;
 
   return link;
 }
