@@ -80,13 +80,14 @@ const download = (links, dir) => {
       console.log('creating a zip ...');
       try {
         await zipDirectory(dir, dir + '.zip'); 
+        console.log('uploading the zip to cloud ...');
+        const link = await uploadZipToCloud(dir + '.zip');
+        await sendLinkViaEmail(link);
       } catch (e) {
         console.log(e);
+      } finally {
+        cleanUp(dir);
       }
-      console.log('uploading the zip to cloud ...');
-      const link = await uploadZipToCloud(dir + '.zip');
-      await sendLinkViaEmail(link);
-      cleanUp(dir);
     });
 
 }
