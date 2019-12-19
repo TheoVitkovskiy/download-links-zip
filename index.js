@@ -23,9 +23,11 @@ app.post('/', async (req, res) => {
     fs.mkdirSync(dir);
   }
 
-  download(req.body.links, dir);
+  const links = req.body.links;
+
+  downloadCourse(links, dir);
   
-  res.send('Your files will be downloaded shortly and sent to you per E-Mail.');
+  res.send(`Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`);
 });
 
 app.get('/email_callback', async (req, res) => {
@@ -64,46 +66,54 @@ const randomIntFromInterval = (min, max) => { // min and max included
 }
 
 const download = (links, dir) => {
-    async.forEachOf(links, (link, key, callback) => {
-        const timeToSleepFor = randomIntFromInterval(3000, (links.length * 60 * 1000) / 4);
-        console.log('sleeping for: ' + timeToSleepFor);
-        setTimeout(() => {
-          const dest = dir + '/' + getLessonName(link);
-          const file = fs.createWriteStream(dest);
-          https.get(link, response => {
-              response.pipe(file);
-              file.on('finish', () => {
-                file.close(() => {
-                  console.log(dest);
-                  callback();
-                }); 
-              }).on('close', (err) => {
-  //                fs.unlink(dest, () => {
-  //                  console.log('deleted file ' + dest);
-  //                }); // Delete the file async. (But we don't check the result)
-  //                if (err) cb(err.message);
-              })
-          });
-          return '';
-        }, timeToSleepFor);
-    }, async () => {
-      console.log('creating a zip ...');
-      try {
-        await zipDirectory(dir, dir + '.zip'); 
-        console.log('uploading the zip to cloud ...');
-        const link = await uploadZipToCloud(dir + '.zip');
-        await sendLinkViaEmail(link);
-      } catch (e) {
-        console.log(e);
-      } finally {
-        cleanUp(dir);
-      }
-    });
+    async.forEachOf(
+      links,
+      (link, key, callback) => downloadCourseFromLink(dir), 
+      zipAndUpload
+    );
+}
 
+downloadCourseFromLink = (link, key, callback, dir) => {
+  const timeToSleepFor = randomIntFromInterval(3000, (links.length * 60 * 1000) / 4);
+  console.log('sleeping for: ' + timeToSleepFor);
+  setTimeout(() => {
+    const dest = dir + '/' + getLessonName(link);
+    const file = fs.createWriteStream(dest);
+    https.get(link, response => {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close(() => {
+            console.log(dest);
+            callback();
+          }); 
+        }).on('close', (err) => {
+//        fs.unlink(dest, () => {
+//          console.log('deleted file ' + dest);
+//        }); // Delete the file async. (But we don't check the result)
+//        if (err) cb(err.message);
+        })
+    });
+    return '';
+  }, timeToSleepFor);
+}
+
+const zipAndUpload = async () => {
+  try {
+    console.log('creating a zip ...');
+    await zipDirectory(dir, dir + '.zip'); 
+    console.log('uploading the zip to cloud ...');
+    const link = await uploadZipToCloud(dir + '.zip');
+    console.log('sending the link to zip via email ...')
+    await sendLinkViaEmail(link, dir);
+  } catch (e) {
+    console.log(e);
+  } finally {
+    console.log('finished, cleaning up ...')
+    cleanUp(dir);
+  }
 }
 
 const cleanUp = (dir) => {
-  console.log('running clean up ...');
   fs.unlink(dir + '.zip', (err) => {
     console.error(err);
     return;
@@ -111,7 +121,6 @@ const cleanUp = (dir) => {
 }
 
 const uploadZipToCloud = async (zip) => {
-  console.log('ZIP', zip);
   const upload = new Promise((resolve, reject) => {
     authorizeGoogleDrive((google, auth) => {
       const drive = google.drive({version: 'v3', auth});
@@ -121,7 +130,6 @@ const uploadZipToCloud = async (zip) => {
       };
 
       const media = {
-        //mimeType: 'image/jpeg',
         body: fs.createReadStream(zip)
       }
 
@@ -157,7 +165,7 @@ const uploadZipToCloud = async (zip) => {
   return link;
 }
 
-const sendLinkViaEmail = (link) => {
+const sendLinkViaEmail = (link, dir) => {
   const transport = {
     service: 'gmail',
     secure: false,
@@ -184,7 +192,7 @@ const sendLinkViaEmail = (link) => {
     from: 'thv_company@heroku.com',
     to: 'fvitkovski@mail.de',
     replyTo: 'theovitko@gmail.com',
-    subject: link + ' Your zip is ready to download!',
+    subject: dir + ' Your zip is ready to download!',
     html: '<a href="https://zip-download.herokuapp.com/email_callback?link='+ link +'">Click to download your zip!</a>',
   }
 
@@ -204,11 +212,6 @@ const getLessonName = (link) => {
   return parts[parts.length - 1];
 }
  
-/**
- * @param {String} source
- * @param {String} out
- * @returns {Promise}
- */
 const zipDirectory = (source, out) => {
   const archive = archiver('zip', { zlib: { level: 9 }});
   const stream = fs.createWriteStream(out);
@@ -225,8 +228,8 @@ const zipDirectory = (source, out) => {
   });
 }
 
-
 const port = process.env.PORT || 3004;
+
 app.listen(port, () => {
   console.log(`The download link server is ready at port ${port}. Feel free to send some data in the form {"name" : "cool"}, "links" : ["https://link.com"]"} to POST /`)
 });
