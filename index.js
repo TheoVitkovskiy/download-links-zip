@@ -30,11 +30,7 @@ app.post('/', async (req, res) => {
 app.get('/email_callback', async (req, res) => {
   const link = req.query.link;
   
-  try {
-    await deleteFile(link);
-  } catch (e) {
-    return res.status(500);
-  }
+  setTimeout(() => deleteFile(link), 90 * 60 * 1000);
 
   res.redirect(link)
 });
@@ -43,8 +39,8 @@ const deleteFile = async (link) => {
   const fileId = link.match(/d\/(.*)\/view/)[1];
 
   const promise = new Promise((resolve, reject) => {
-    authorizeGoogleDrive((google, oauth) => {
-      const drive = google.drive({version: 'v3', oauth});
+    authorizeGoogleDrive((google, auth) => {
+      const drive = google.drive({version: 'v3', auth});
 
       drive.files.delete({
         'fileId' : fileId,
@@ -97,17 +93,17 @@ const download = (links, dir) => {
 
 const cleanUp = (dir) => {
   console.log('running clean up ...');
-//  fs.unlink(dir + '.zip', (err) => {
-//    console.error(err);
-//    return;
-//  })
+  fs.unlink(dir + '.zip', (err) => {
+    console.error(err);
+    return;
+  })
 }
 
 const uploadZipToCloud = async (zip) => {
   console.log('ZIP', zip);
   const upload = new Promise((resolve, reject) => {
-    authorizeGoogleDrive((google, oauth) => {
-      const drive = google.drive({version: 'v3', oauth});
+    authorizeGoogleDrive((google, auth) => {
+      const drive = google.drive({version: 'v3', auth});
 
       const fileMetadata = {
         'name' : zip
