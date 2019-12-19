@@ -4,6 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const archiver = require('archiver');
 const nodemailer = require('nodemailer');
+const sgTransport = require('nodemailer-sendgrid-transport');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const authorizeGoogleDrive = require('./auth');
@@ -173,11 +174,16 @@ const sendLinkViaEmail = (link) => {
 
   console.log('Link to the ZIP file: ' + link);
 
-  let transporter = nodemailer.createTransport(transport); 
+  let transporter = nodemailer.createTransport(sgTransport({
+    auth: {
+      api_key: process.env.EMAIL_API_KEY
+    }
+  })); 
 
   const data = {
-    from: 'theovitko@gmail.com',
+    from: 'thv_company@heroku.com',
     to: 'fvitkovski@mail.de',
+    replyTo: 'theovitko@gmail.com',
     subject: link + ' Your zip is ready to download!',
     html: '<a href="https://zip-download.herokuapp.com/email_callback?link='+ link +'">Click to download your zip!</a>',
   }
