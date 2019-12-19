@@ -178,7 +178,7 @@ const sendLinkViaEmail = (link) => {
   const data = {
     from: 'theovitko@gmail.com',
     to: 'fvitkovski@mail.de',
-    subject: 'Your zip is ready to download!',
+    subject: link + ' Your zip is ready to download!',
     html: '<a href="https://zip-download.herokuapp.com/email_callback?link='+ link +'">Click to download your zip!</a>',
   }
 
