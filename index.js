@@ -2,6 +2,7 @@ require('newrelic');
 const express = require('express');
 const async = require('async');
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const archiver = require('archiver');
 const nodemailer = require('nodemailer');
@@ -29,6 +30,10 @@ app.post('/', async (req, res) => {
   downloadCourse(links, dir);
   
   res.send(`Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`);
+});
+
+app.get('/', async (req, res) => {
+  res.send('Hello World!');
 });
 
 app.get('/email_callback', async (req, res) => {
@@ -66,16 +71,22 @@ const randomIntFromInterval = (min, max) => { // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-const download = (links, dir) => {
+const downloadCourse = (links, dir) => {
+    const pingHeroku = setInterval(() => {
+      https.get(process.env.HOST_URL, (response) => {
+        console.log('sdfd');
+      });
+    }, 300000);
+
     async.forEachOf(
       links,
-      (link, key, callback) => downloadCourseFromLink(dir), 
-      zipAndUpload
+      (link, key, callback) => downloadCourseFromLink(link, key, callback, dir, links.length), 
+      () => zipAndUpload(dir, pingHeroku)
     );
 }
 
-downloadCourseFromLink = (link, key, callback, dir) => {
-  const timeToSleepFor = randomIntFromInterval(3000, (links.length * 60 * 1000) / 4);
+downloadCourseFromLink = (link, key, callback, dir, minutes) => {
+  const timeToSleepFor = randomIntFromInterval(3000, (minutes * 60 * 1000) / 4);
   console.log('sleeping for: ' + timeToSleepFor);
   setTimeout(() => {
     const dest = dir + '/' + getLessonName(link);
@@ -98,7 +109,7 @@ downloadCourseFromLink = (link, key, callback, dir) => {
   }, timeToSleepFor);
 }
 
-const zipAndUpload = async () => {
+const zipAndUpload = async (dir, pingHeroku) => {
   try {
     console.log('creating a zip ...');
     await zipDirectory(dir, dir + '.zip'); 
@@ -111,6 +122,7 @@ const zipAndUpload = async () => {
   } finally {
     console.log('finished, cleaning up ...')
     cleanUp(dir);
+    clearInterval(pingHeroku);
   }
 }
 
