@@ -26,8 +26,9 @@ app.post('/', async (req, res) => {
   }
 
   const links = req.body.links;
+  const recipientEmail = req.body.email;
 
-  downloadCourse(links, dir);
+  downloadCourse(links, dir, recipientEmail);
   
   res.send(`Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`);
 });
@@ -71,7 +72,7 @@ const randomIntFromInterval = (min, max) => { // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-const downloadCourse = (links, dir) => {
+const downloadCourse = (links, dir, recipientEmail) => {
     const pingHeroku = setInterval(() => {
       https.get(process.env.HOST_URL, (response) => {
         console.log('sdfd');
@@ -81,7 +82,7 @@ const downloadCourse = (links, dir) => {
     async.forEachOf(
       links,
       (link, key, callback) => downloadCourseFromLink(link, key, callback, dir, links.length), 
-      () => zipAndUpload(dir, pingHeroku)
+      () => zipAndUpload(dir, pingHeroku, recipientEmail)
     );
 }
 
@@ -109,14 +110,14 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
   }, timeToSleepFor);
 }
 
-const zipAndUpload = async (dir, pingHeroku) => {
+const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
   try {
     console.log('creating a zip ...');
     await zipDirectory(dir, dir + '.zip'); 
     console.log('uploading the zip to cloud ...');
     const link = await uploadZipToCloud(dir + '.zip');
     console.log('sending the link to zip via email ...')
-    await sendLinkViaEmail(link, dir);
+    await sendLinkViaEmail(link, dir, recipientEmail);
   } catch (e) {
     console.log(e);
   } finally {
@@ -178,7 +179,7 @@ const uploadZipToCloud = async (zip) => {
   return link;
 }
 
-const sendLinkViaEmail = (link, dir) => {
+const sendLinkViaEmail = (link, dir, email) => {
   const transport = {
     service: 'gmail',
     secure: false,
@@ -204,7 +205,7 @@ const sendLinkViaEmail = (link, dir) => {
   const data = {
     from: 'thv_company@heroku.com',
     to: 'fvitkovski@mail.de',
-    replyTo: 'theovitko@gmail.com',
+    replyTo: email,
     subject: dir + ' Your zip is ready to download!',
     html: '<a href="https://zip-download.herokuapp.com/email_callback?link='+ link +'">Click to download your zip!</a>',
   }
