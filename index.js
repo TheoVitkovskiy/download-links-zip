@@ -29,7 +29,7 @@ app.post('/', async (req, res) => {
   const recipientEmail = req.body.email;
 
   downloadCourse(links, dir, recipientEmail);
-  
+
   res.send(`Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`);
 });
 
@@ -39,13 +39,13 @@ app.get('/', async (req, res) => {
 
 app.get('/email_callback', async (req, res) => {
   const link = req.query.link;
-  
-  setTimeout(() => deleteFile(link), 90 * 60 * 1000);
+
+  setTimeout(() => deleteFile(link, pingHeroku()), 90 * 60 * 1000);
 
   res.redirect(link)
 });
 
-const deleteFile = async (link) => {
+const deleteFile = async (link,pingHeroku) => {
   const fileId = link.match(/d\/(.*)\/view/)[1];
 
   const promise = new Promise((resolve, reject) => {
@@ -55,6 +55,7 @@ const deleteFile = async (link) => {
       drive.files.delete({
         'fileId' : fileId,
       }, (err, file) => {
+        clearInterval(pingHeroku);
         if (err) {
           console.error(err);
           reject();
@@ -68,21 +69,24 @@ const deleteFile = async (link) => {
   await promise;
 }
 
-const randomIntFromInterval = (min, max) => { // min and max included 
+const randomIntFromInterval = (min, max) => { // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-const downloadCourse = (links, dir, recipientEmail) => {
-    const pingHeroku = setInterval(() => {
+const pingHeroku = () => {
+    return setInterval(() => {
       https.get(process.env.HOST_URL, (response) => {
         console.log('sdfd');
       });
     }, 300000);
+}
+
+const downloadCourse = (links, dir, recipientEmail) => {
 
     async.forEachOf(
       links,
-      (link, key, callback) => downloadCourseFromLink(link, key, callback, dir, links.length), 
-      () => zipAndUpload(dir, pingHeroku, recipientEmail)
+      (link, key, callback) => downloadCourseFromLink(link, key, callback, dir, links.length),
+      () => zipAndUpload(dir, pingHeroku(), recipientEmail)
     );
 }
 
@@ -98,7 +102,7 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
           file.close(() => {
             console.log(dest);
             callback();
-          }); 
+          });
         }).on('close', (err) => {
 //        fs.unlink(dest, () => {
 //          console.log('deleted file ' + dest);
@@ -113,7 +117,7 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
 const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
   try {
     console.log('creating a zip ...');
-    await zipDirectory(dir, dir + '.zip'); 
+    await zipDirectory(dir, dir + '.zip');
     console.log('uploading the zip to cloud ...');
     const link = await uploadZipToCloud(dir + '.zip');
     console.log('sending the link to zip via email ...')
@@ -165,12 +169,12 @@ const uploadZipToCloud = async (zip) => {
             }
           }, (err, result) => {
               console.log('gave permissions to read for everyone');
-              if(err) console.log(err) 
+              if(err) console.log(err)
               else resolve([ file.data.webViewLink ]);
             });
         }
       })
-        
+
     })
   })
 
@@ -200,7 +204,7 @@ const sendLinkViaEmail = (link, dir, email) => {
     auth: {
       api_key: process.env.EMAIL_API_KEY
     }
-  })); 
+  }));
 
   const data = {
     from: 'thv_company@heroku.com',
@@ -225,7 +229,7 @@ const getLessonName = (link) => {
   var parts = link.split('/');
   return parts[parts.length - 1];
 }
- 
+
 const zipDirectory = (source, out) => {
   const archive = archiver('zip', { zlib: { level: 9 }});
   const stream = fs.createWriteStream(out);
