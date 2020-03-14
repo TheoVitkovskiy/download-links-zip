@@ -99,23 +99,6 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
     const file = fs.createWriteStream(dest);
     const isYouTube = link.includes('https://www.youtube.com/watch');
 
-    if (isYouTube) {
-      ytdl(link, { 
-        format: 'mp3' 
-      })
-        .pipe(file)
-    } else {
-      https.get(link, response => {
-        pipeToFile(response, file)
-      });
-    }
-    
-    return '';
-  }, timeToSleepFor);
-}
-
-const pipeToFile = (response, file) => {
-    response.pipe(file);
     file.on('finish', () => {
       file.close(() => {
         console.log(dest);
@@ -127,6 +110,24 @@ const pipeToFile = (response, file) => {
 //        }); // Delete the file async. (But we don't check the result)
 //        if (err) cb(err.message);
     })
+
+    if (isYouTube) {
+      ytdl(link, { 
+        format: 'mp3' 
+      })
+        .pipe(file)
+    } else {
+      https.get(link, response => {
+        response.pipe(file);
+      });
+    }
+
+    
+    return '';
+  }, timeToSleepFor);
+}
+
+const pipeToFile = (response, file) => {
 }
 
 const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
