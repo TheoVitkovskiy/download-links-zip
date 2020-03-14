@@ -95,9 +95,15 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
   const timeToSleepFor = randomIntFromInterval(3000, (minutes * 60 * 1000) / 4);
   console.log('sleeping for: ' + timeToSleepFor);
   setTimeout(() => {
-    const dest = dir + '/' + getLessonName(link);
-    const file = fs.createWriteStream(dest);
     const isYouTube = link.includes('https://www.youtube.com/watch');
+
+    let dest = dir + '/' + getLessonName(link);
+
+    if (isYouTube) {
+      dest += '.mp3';
+    }
+
+    const file = fs.createWriteStream(dest);
 
     file.on('finish', () => {
       file.close(() => {
@@ -113,7 +119,8 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
 
     if (isYouTube) {
       ytdl(link, { 
-        format: 'mp3' 
+        quality: 'lowestaudio',
+        filter: 'audioonly'
       })
         .pipe(file)
     } else {
