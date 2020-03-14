@@ -10,6 +10,7 @@ const sgTransport = require('nodemailer-sendgrid-transport');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const authorizeGoogleDrive = require('./auth');
+const ytdl = require('ytdl-core');
 
 require('dotenv').config();
 
@@ -96,22 +97,36 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
   setTimeout(() => {
     const dest = dir + '/' + getLessonName(link);
     const file = fs.createWriteStream(dest);
-    https.get(link, response => {
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close(() => {
-            console.log(dest);
-            callback();
-          });
-        }).on('close', (err) => {
+    const isYouTube = link.includes('https://www.youtube.com/watch');
+
+    if (isYouTube) {
+      ytdl(link, { 
+        format: 'mp3' 
+      })
+        .pipe(file)
+    } else {
+      https.get(link, response => {
+        pipeToFile(response, file)
+      });
+    }
+    
+    return '';
+  }, timeToSleepFor);
+}
+
+const pipeToFile = (response, file) => {
+    response.pipe(file);
+    file.on('finish', () => {
+      file.close(() => {
+        console.log(dest);
+        callback();
+      });
+    }).on('close', (err) => {
 //        fs.unlink(dest, () => {
 //          console.log('deleted file ' + dest);
 //        }); // Delete the file async. (But we don't check the result)
 //        if (err) cb(err.message);
-        })
-    });
-    return '';
-  }, timeToSleepFor);
+    })
 }
 
 const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
