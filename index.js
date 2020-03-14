@@ -119,7 +119,7 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
 
     if (isYouTube) {
       ytdl(link, { 
-        quality: 'highestaudio',
+        quality: 'lowestaudio',
         filter: 'audioonly'
       })
         .pipe(file)
