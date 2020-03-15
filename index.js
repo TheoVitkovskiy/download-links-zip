@@ -19,23 +19,23 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-app.post('/', async (req, res) => {
-  const dir = './' + req.body.name;
+app.post('/', async ({
+  body: {
+    links,
+    recipientEmail,
+    format,
+    name
+  }
+}, res) => {
+  const dir = './' + name;
 
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir);
   }
 
-  const links = req.body.links;
-  const recipientEmail = req.body.email;
-
-  downloadCourse(links, dir, recipientEmail);
+  downloadCourse(links, dir, recipientEmail, format);
 
   res.send(`Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`);
-});
-
-app.get('/', async (req, res) => {
-  res.send('Hello World!');
 });
 
 app.get('/email_callback', async (req, res) => {
@@ -45,6 +45,11 @@ app.get('/email_callback', async (req, res) => {
 
   res.redirect(link)
 });
+
+const originType = {
+  YOUTUBE: 'YouTube',
+  DEFAULT: 'default'
+}
 
 const deleteFile = async (link,pingHeroku) => {
   const fileId = link.match(/d\/(.*)\/view/)[1];
@@ -77,32 +82,67 @@ const randomIntFromInterval = (min, max) => { // min and max included
 const pingHeroku = () => {
     return setInterval(() => {
       https.get(process.env.HOST_URL, (response) => {
-        console.log('sdfd');
+        console.log('heroku was successfully pinged');
       });
     }, 300000);
 }
 
-const downloadCourse = (links, dir, recipientEmail) => {
-
+const downloadCourse = (links, dir, recipientEmail, format) => {
     async.forEachOf(
       links,
-      (link, key, callback) => downloadCourseFromLink(link, key, callback, dir, links.length),
+      (link, key, callback) => {
+        const timeToSleepFor = randomIntFromInterval(3000, (links.length * 60 * 1000) / 4);
+
+        setTimeout(() => {
+          downloadCourseFromLink(link, key, callback, dir, format)
+        }, timeToSleepFor);
+      },
       () => zipAndUpload(dir, pingHeroku(), recipientEmail)
     );
 }
 
-downloadCourseFromLink = (link, key, callback, dir, minutes) => {
-  const timeToSleepFor = randomIntFromInterval(3000, (minutes * 60 * 1000) / 4);
-  console.log('sleeping for: ' + timeToSleepFor);
-  setTimeout(() => {
-    const isYouTube = link.includes('https://www.youtube.com/watch');
+const downloadCourseFromLink = (link, key, callback, dir, format) => {
+    const originType = getOriginType(link);
 
-    let dest = dir + '/' + getLessonName(link);
+    downloadCourseToFile(link, originType, createWriteStream(
+      getDest(dir, link, format, originType) 
+    ));
+}
 
-    if (isYouTube) {
-      dest += '.mp3';
+
+const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
+  try {
+    const zip = await zipDirectory(dir);
+      console.log('created the zip, now uploading the zip to the cloud ...');
+    const link = await uploadZipToCloud(zip);
+      console.log('uploaded the zip to the cloud, now send the link to the zip via email ...')
+    await sendLinkViaEmail(link, dir, recipientEmail);
+      console.log(`sent the link: ${link} to the email: ${recipientEmail}`)
+  } catch (e) {
+      console.error('something went wrong during the zipAndUpload process', e);
+  } finally {
+      console.log('finished creating, uploading and sending the zip, cleaning up ...')
+    cleanUp(dir);
+    clearInterval(pingHeroku);
+  }
+}
+
+const downloadCourseToFile = (link, originType, writeStream) => {
+    if (originType.YOUTUBE) {
+      ytdl(link, { 
+        quality: 'lowestaudio',
+        filter: 'audioonly'
+      })
+        .pipe(writeStream)
+    } else {
+      https.get(link, response => {
+        response.pipe(writeStream);
+      });
     }
+}
 
+
+const createWriteStream = (dest) => {
     const file = fs.createWriteStream(dest);
 
     file.on('finish', () => {
@@ -117,40 +157,14 @@ downloadCourseFromLink = (link, key, callback, dir, minutes) => {
 //        if (err) cb(err.message);
     })
 
-    if (isYouTube) {
-      ytdl(link, { 
-        quality: 'lowestaudio',
-        filter: 'audioonly'
-      })
-        .pipe(file)
-    } else {
-      https.get(link, response => {
-        response.pipe(file);
-      });
-    }
-
-    
-    return '';
-  }, timeToSleepFor);
+  return file;
 }
 
-const pipeToFile = (response, file) => {
-}
-
-const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
-  try {
-    console.log('creating a zip ...');
-    await zipDirectory(dir, dir + '.zip');
-    console.log('uploading the zip to cloud ...');
-    const link = await uploadZipToCloud(dir + '.zip');
-    console.log('sending the link to zip via email ...')
-    await sendLinkViaEmail(link, dir, recipientEmail);
-  } catch (e) {
-    console.log(e);
-  } finally {
-    console.log('finished, cleaning up ...')
-    cleanUp(dir);
-    clearInterval(pingHeroku);
+const getOriginType = (link) => {
+  if (link.includes('www.youtube.com/watch?v')) {
+    return originType.YOUTUBE;
+  } else {
+    return originType.DEFAULT;
   }
 }
 
@@ -183,7 +197,6 @@ const uploadZipToCloud = async (zip) => {
           console.error(err);
           reject();
         } else {
-          console.log('uploaded the zip to the cloud', file.data.webViewLink);
           drive.permissions.create({
             fileId: file.data.id,
             resource: {
@@ -221,8 +234,6 @@ const sendLinkViaEmail = (link, dir, email) => {
   }
   console.log(JSON.parse(JSON.stringify(transport)));
 
-  console.log('Link to the ZIP file: ' + link);
-
   let transporter = nodemailer.createTransport(sgTransport({
     auth: {
       api_key: process.env.EMAIL_API_KEY
@@ -231,7 +242,7 @@ const sendLinkViaEmail = (link, dir, email) => {
 
   const data = {
     from: 'thv_company@heroku.com',
-    to: 'fvitkovski@mail.de',
+    to: email,
     replyTo: email,
     subject: dir + ' Your zip is ready to download!',
     html: '<a href="https://zip-download.herokuapp.com/email_callback?link='+ link +'">Click to download your zip!</a>',
@@ -243,17 +254,37 @@ const sendLinkViaEmail = (link, dir, email) => {
     } else {
       console.log(info);
     }
-
-    console.log('email sent successfully');
   })
 }
 
-const getLessonName = (link) => {
-  var parts = link.split('/');
-  return parts[parts.length - 1];
+const getDest = (dir, link, format, originType) => (
+  dir + '/' + getUniqueName(link, originType) + getEnding(format)
+)
+
+const getEnding = (format) => {
+  const supportedFormats = [
+    'mp3',
+    'mp4'
+  ];
+
+  let ending = supportedFormats.includes(format) ? '.' + format : '';
+
+  return ending;
 }
 
-const zipDirectory = (source, out) => {
+const getUniqueName = (link, originType) => {
+  switch(originType) {
+    case originType.YOUTUBE:
+      var parts = link.split('/');
+      return parts[parts.length - 1];
+    default:
+      return link;
+  }
+
+}
+
+const zipDirectory = (source) => {
+  const out = source + '.zip';
   const archive = archiver('zip', { zlib: { level: 9 }});
   const stream = fs.createWriteStream(out);
 
@@ -264,7 +295,7 @@ const zipDirectory = (source, out) => {
       .pipe(stream)
     ;
 
-    stream.on('close', () => resolve());
+    stream.on('close', () => resolve(out));
     archive.finalize();
   });
 }
