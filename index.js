@@ -23,10 +23,36 @@ app.post('/', async ({
   body: {
     links,
     recipientEmail,
-    format,
-    name
+    format = 'mp4',
+    name = 'your_zipped_files'
   }
 }, res) => {
+  let errors = [];
+
+  if (!links) {
+    errors.push({
+      field: 'links',
+      message: 'Please provide an array of links to download.'
+    });
+  }
+  if (!recipientEmail) {
+    errors.push({
+      field: 'recipientEmail',
+      message: 'Please provide the email to send the zip to.'
+    });
+  }
+  if (recipientEmail && !validateEmail(recipientEmail)) {
+    errors.push({
+      field: 'recipientEmail',
+      message: 'Please provide a valid email to send the zip to.'
+    });
+  }
+
+  if (errors.length > 0) {
+    res.status(400).send({ errors });
+    return;
+  }
+
   const dir = './' + name;
 
   if (!fs.existsSync(dir)) {
@@ -35,7 +61,8 @@ app.post('/', async ({
 
   downloadCourse(links, dir, recipientEmail, format);
 
-  res.send(`Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`);
+  const message = `Your files will be downloaded within the next ${links.length / 4} minutes and sent to you per E-Mail.`;
+  res.send({'message' : message});
 });
 
 app.get('/email_callback', async (req, res) => {
@@ -46,7 +73,12 @@ app.get('/email_callback', async (req, res) => {
   res.redirect(link)
 });
 
-const originType = {
+const validateEmail = (email) => {
+    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+}
+
+const originTypeEnum = {
   YOUTUBE: 'YouTube',
   DEFAULT: 'default'
 }
@@ -105,7 +137,8 @@ const downloadCourseFromLink = (link, key, callback, dir, format) => {
     const originType = getOriginType(link);
 
     downloadCourseToFile(link, originType, createWriteStream(
-      getDest(dir, link, format, originType) 
+      getDest(dir, link, format, originType),
+      callback
     ));
 }
 
@@ -128,7 +161,7 @@ const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
 }
 
 const downloadCourseToFile = (link, originType, writeStream) => {
-    if (originType.YOUTUBE) {
+    if (originTypeEnum.YOUTUBE) {
       ytdl(link, { 
         quality: 'lowestaudio',
         filter: 'audioonly'
@@ -142,7 +175,7 @@ const downloadCourseToFile = (link, originType, writeStream) => {
 }
 
 
-const createWriteStream = (dest) => {
+const createWriteStream = (dest, callback) => {
     const file = fs.createWriteStream(dest);
 
     file.on('finish', () => {
@@ -162,9 +195,9 @@ const createWriteStream = (dest) => {
 
 const getOriginType = (link) => {
   if (link.includes('www.youtube.com/watch?v')) {
-    return originType.YOUTUBE;
+    return originTypeEnum.YOUTUBE;
   } else {
-    return originType.DEFAULT;
+    return originTypeEnum.DEFAULT;
   }
 }
 
@@ -274,13 +307,12 @@ const getEnding = (format) => {
 
 const getUniqueName = (link, originType) => {
   switch(originType) {
-    case originType.YOUTUBE:
+    case originTypeEnum.YOUTUBE:
       var parts = link.split('/');
       return parts[parts.length - 1];
     default:
       return link;
   }
-
 }
 
 const zipDirectory = (source) => {
@@ -292,8 +324,7 @@ const zipDirectory = (source) => {
     archive
       .directory(source, false)
       .on('error', err => reject(err))
-      .pipe(stream)
-    ;
+      .pipe(stream);
 
     stream.on('close', () => resolve(out));
     archive.finalize();
