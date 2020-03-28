@@ -161,19 +161,20 @@ const zipAndUpload = async (dir, pingHeroku, recipientEmail) => {
 }
 
 const downloadCourseToFile = (link, originType, writeStream) => {
-    if (originTypeEnum.YOUTUBE) {
-      ytdl(link, { 
-        quality: 'lowestaudio',
-        filter: 'audioonly'
-      })
-        .pipe(writeStream)
-    } else {
-      https.get(link, response => {
-        response.pipe(writeStream);
-      });
+    switch(originType) {
+      case originTypeEnum.YOUTUBE:
+        ytdl(link, { 
+          quality: 'lowestaudio',
+          filter: 'audioonly'
+        })
+          .pipe(writeStream)
+        break;
+      default:
+        https.get(link, response => {
+          response.pipe(writeStream);
+        });
     }
 }
-
 
 const createWriteStream = (dest, callback) => {
     const file = fs.createWriteStream(dest);
