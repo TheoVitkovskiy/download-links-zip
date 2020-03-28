@@ -292,14 +292,20 @@ const sendLinkViaEmail = (link, dir, email) => {
 }
 
 const getDest = (dir, link, format, originType) => (
-  dir + '/' + getUniqueName(link, originType) + getEnding(format)
+  dir + '/' + getUniqueName(link, originType) + getEnding(format, link)
 )
 
-const getEnding = (format) => {
+const getEnding = (format, link) => {
   const supportedFormats = [
     'mp3',
     'mp4'
   ];
+
+  supportedFormats.forEach(format => {
+    if (link.includes(format)) {
+      return '';
+    }
+  });
 
   let ending = supportedFormats.includes(format) ? '.' + format : '';
 
