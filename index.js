@@ -313,13 +313,8 @@ const getEnding = (format, link) => {
 }
 
 const getUniqueName = (link, originType) => {
-  switch(originType) {
-    case originTypeEnum.YOUTUBE:
-      var parts = link.split('/');
-      return parts[parts.length - 1];
-    default:
-      return link;
-  }
+  var parts = link.split('/');
+  return parts[parts.length - 1];
 }
 
 const zipDirectory = (source) => {
