@@ -4,11 +4,14 @@ const authorizeGoogleDrive = require('./auth');
 const deleteAllFiles = () => {
     authorizeGoogleDrive((google, auth) => {
       const drive = google.drive({version: 'v3', auth});
+      var yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
 
-      drive.files.list((err, {data}) => {
+      drive.files.list({
+        q: `modifiedTime < '${yesterday}'` 
+      }, (err, {data}) => {
         if (err) {
           console.error(err);
-          reject();
         } else {
           data.files.forEach(({id}) => {
             drive.files.delete({
@@ -16,9 +19,8 @@ const deleteAllFiles = () => {
             }, (err, file) => {
               if (err) {
                 console.error(err);
-                reject();
               } else {
-                console.log('successfully deleted the file with the id: ', fileId);
+                console.log('successfully deleted the file with the id: ', id);
               }
             })
           })
