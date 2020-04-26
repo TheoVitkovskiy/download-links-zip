@@ -10,7 +10,6 @@ module.exports = (callback) => {
 }
 
 function authorize(callback) {
-  console.log(process.env.PRIVATE_KEY);
   const jwt = new google.auth.JWT(
     process.env.CLIENT_EMAIL,
     null,

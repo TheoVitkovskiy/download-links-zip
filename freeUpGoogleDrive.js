@@ -5,12 +5,13 @@ const deleteAllFiles = () => {
     authorizeGoogleDrive((google, auth) => {
       const drive = google.drive({version: 'v3', auth});
 
-      drive.files.list({}, (err, {files}) => {
+      drive.files.list((err, data) => {
         if (err) {
           console.error(err);
           reject();
         } else {
-          files.forEach(({id}) => {
+          console.log(data);
+          data.files.forEach(({id}) => {
             drive.files.delete({
               'fileId' : fileId,
             }, (err, file) => {
