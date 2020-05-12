@@ -90,14 +90,18 @@ const createWriteStream = (dest, callback) => {
         console.log(dest);
         callback();
       });
-    }).on('close', (err) => {
-//        fs.unlink(dest, () => {
-//          console.log('deleted file ' + dest);
-//        }); // Delete the file async. (But we don't check the result)
-//        if (err) cb(err.message);
     })
+      .on('close', (err) => {
+        fs.unlink(dest, () => {
+          console.log('deleted file ' + dest);
+        }); // Delete the file async. (But we don't check the result)
+        if (err) cb(err.message);
+      })
+      .on('error', err => {
+          console.log('The file was not piped/written correctly', err.message);
+      })
 
-  return file;
+    return file;
 }
 
 const getOriginType = (link) => {
