@@ -43,10 +43,20 @@ const downloadCourse = (links, dir, recipientEmail, format) => {
 const downloadCourseFromLink = (link, key, callback, dir, format) => {
     const originType = getOriginType(link);
 
+    ensureDirSync(dir);
+
     downloadCourseToFile(link, originType, createWriteStream(
       getDest(dir, link, format, originType),
       callback
     ));
+}
+
+function ensureDirSync (dirpath) {
+  try {
+    return fs.mkdirSync(dirpath)
+  } catch (err) {
+    if (err.code !== 'EEXIST') throw err
+  }
 }
 
 
